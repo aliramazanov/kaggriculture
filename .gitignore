@@ -1,0 +1,14 @@
+research/
+
+dist/
+
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.vscode/
+
+kaggle.json
+access_token
+*.key

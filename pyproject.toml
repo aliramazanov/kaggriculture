@@ -1,0 +1,52 @@
+[project]
+name = "kaggriculture-agent"
+version = "1.0.0"
+description = "Competition agent for the Kaggriculture farming/market simulation"
+requires-python = ">=3.12"
+
+# Pinned, not floated. The agent's market model is calibrated against this exact
+# engine build; a minor bump can silently change price curves or town demand and
+# invalidate every parameter in agent/params.py. tests/engine_ref.py asserts it.
+dependencies = ["kaggle-environments==1.32.6"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["agent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["dist"]
+
+[tool.ruff.lint.per-file-ignores]
+# gamedata.py holds the game's tables, aligned in columns to match the layout
+# they are copied from. Wrapping them to the line limit breaks that alignment.
+"agent/gamedata.py" = ["E501"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "I",    # import sorting
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "SIM",  # simplify
+    "RET",  # return consistency
+]
+
+[tool.pyright]
+include = ["agent", "tests", "scripts"]
+exclude = ["dist", ".venv"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
