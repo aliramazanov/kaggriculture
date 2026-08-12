@@ -171,7 +171,8 @@ class Plan:
             if deficit <= 0:
                 continue
 
-            score = deficit * self.plant_value(crop, self.day)
+            value = self.plant_value(crop, self.day)
+            score = value if self.p.empty_tile_by_value else deficit * value
 
             if score > best_score:
                 best, best_score = crop, score
@@ -447,7 +448,14 @@ class Plan:
         # scarcer all season (strawberry runs $120 on day 0 to $400+ late), so
         # dumping them early is giving away most of their value.
         margin = self.p.premium_hold_margin if product in PREMIUM else self.p.hold_margin
-        reserve = later / max(0.01, margin)
+
+        # Subtractive holds while the unit is expected to gain more than
+        # `margin` coins by waiting. Dividing instead scales the reserve *down*
+        # as the margin rises, so every setting sells on sight and holding can
+        # never happen; that is kept only to reproduce the old behaviour.
+        reserve = (
+            later - margin if self.p.hold_subtractive else later / max(0.01, margin)
+        )
 
         if self.p.frontrun_enabled:
             pending = self._pressure.get(product, 0.0)

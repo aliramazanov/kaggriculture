@@ -57,7 +57,7 @@ class Params:
     # they tend, so the real limit is useful work to give them, not cash.
     hands_by_day: tuple[int, ...] = (4, 6, 8, 10, 11, 12, 12, 12)
     hands_steady: int = 12
-    min_cash_for_hire: int = 305
+    min_cash_for_hire: int = 150
     reserve_hire_days: float = 0.707
 
     # Animals. Purchases come out of surplus cash only: buying ahead of income
@@ -74,7 +74,7 @@ class Params:
     # reserve keeps enough back that a good selling price cannot starve the herd,
     # and feed is collected in batches because one trip to the shed should serve
     # many animals rather than one.
-    feed_pickup_batch: int = 15
+    feed_pickup_batch: int = 6
     wheat_feed_reserve: int = 12
     wheat_days_cover: int = 2
     emergency_feed: bool = False
@@ -98,10 +98,38 @@ class Params:
     # profitable. The pool is shared, though: time spent waiting for a better
     # price is time the opponent can sell into it first. A unit is held only when
     # the expected gain clears the margin below.
+    # Coins of expected future gain that justify keeping a unit rather than
+    # selling it now. Applied by subtraction from the expected later price.
+    # Route selling through agent/selling.py, which chooses a quantity per
+    # product by walking units against the projected later price, instead of the
+    # single all-or-nothing threshold below.
+    use_sell_planner: bool = False
+    hold_subtractive: bool = False
     hold_margin: float = 4.0
     premium_hold_margin: float = 4.0
     hold_horizon_steps: int = 96
     sell_start_day: int = 3
+
+    # Order in which our own sells are queued. Orders resolve in list order, so
+    # the earlier slot takes the better price when both players sell the same
+    # product. Ranking by total value alone treats every product as equally
+    # urgent; weighting by how steeply a product's price falls when the pool
+    # fills puts the fragile lines first, where losing the slot costs most.
+    # 0 disables the weighting and ranks purely by value.
+    sell_glut_weight: float = 1.0
+
+    # Largest quantity of one product to sell in a single order. Each unit in an
+    # order is priced against the pool as it fills, so a large order walks its
+    # own price down. Spreading the same stock over several turns lets the town
+    # drain the pool in between. 0 removes the cap and sells everything held.
+    sell_batch_max: int = 0
+
+    # How a freed tile picks its next crop. Ranking by shortfall times value lets
+    # a cheap, fast-cycling crop win every tile: wheat is harvested and destroyed
+    # every few days, so its shortfall is permanently large, while a slow crop
+    # worth four times as much is short by one tile and loses. True ranks by the
+    # value of the tile itself and uses the shortfall only to decide eligibility.
+    empty_tile_by_value: bool = True
 
     # The opponent's farm is public, including how much each tile is holding, so
     # a large sale is visible before it happens. The first seller into a pool gets

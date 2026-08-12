@@ -15,6 +15,7 @@ raising. An uncaught error ends the season as a loss.
 from __future__ import annotations
 
 from agent import assign as assign_mod
+from agent import selling
 from agent import tasks as tasks_mod
 from agent.gamedata import ANIMALS, CROPS, LAND_PRICES, MARKET_PARAMS, TERMINAL_STEP
 from agent.params import DEFAULT, Params
@@ -197,43 +198,46 @@ def _market_orders(obs: dict, plan: Plan, params: Params) -> list[list]:
                 orders.append(["BUY_PRODUCT", "WHEAT", want])
 
     # --- sales ---------------------------------------------------------------
-    if day >= params.sell_start_day:
-        # What overflows tonight is the shed plus everything units are holding,
-        # because every inventory empties into the shed at the end of the day and
-        # whatever passes the cap is destroyed.
-        shed_count = sum(shed.values()) + sum(
-            sum(inv.values()) for inv in obs["private"].get("inventories", [])
-        )
+    # What overflows tonight is the shed plus everything units are holding,
+    # because every inventory empties into the shed at the end of the day and
+    # whatever passes the cap is destroyed.
+    shed_used = sum(shed.values()) + sum(
+        sum(inv.values()) for inv in obs["private"].get("inventories", [])
+    )
 
+    if params.use_sell_planner:
+        for order in selling.plan_sales(plan, params, shed_used):
+            if len(orders) >= params.max_orders:
+                break
+            orders.append(order)
+    elif day >= params.sell_start_day:
         sellable = []
 
         for product, held in shed.items():
             if held <= 0 or product not in MARKET_PARAMS:
                 continue
             if product == "WHEAT":
-                # Wheat that will be needed as feed is never sold, because buying
-                # it back costs more than selling it earned.
                 reserve = max(params.wheat_feed_reserve, living * params.wheat_days_cover)
                 held = max(0, held - reserve)
                 if held <= 0:
                     continue
             price_now = plan._price(product)
+            glut = MARKET_PARAMS[product]["above_target"] if params.sell_glut_weight else 1.0
+            urgency = glut ** params.sell_glut_weight
             reserve = plan.reserve_price(product)
-            # Once the shed is near overflowing, sell at any price: whatever is
-            # destroyed tonight is worth nothing at all.
-            forced = shed_count >= params.shed_soft_cap
+            forced = shed_used >= params.shed_soft_cap
             if forced or price_now >= reserve:
-                sellable.append((price_now * held, product, held))
+                sellable.append((price_now * held * urgency, product, held))
 
-        # Most valuable first. Orders placed in the same slot by both players
-        # clear at the same price, so order within our own list is what decides
-        # which of our goods sells into the higher price.
         sellable.sort(reverse=True)
 
         for _, product, held in sellable:
             if len(orders) >= params.max_orders:
                 break
-            orders.append(["SELL", product, held])
+            qty = held
+            if params.sell_batch_max and shed_used < params.shed_soft_cap:
+                qty = min(held, params.sell_batch_max)
+            orders.append(["SELL", product, qty])
 
     return orders[: params.max_orders]
 
