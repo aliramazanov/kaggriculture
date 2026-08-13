@@ -15,7 +15,6 @@ raising. An uncaught error ends the season as a loss.
 from __future__ import annotations
 
 from agent import assign as assign_mod
-from agent import selling
 from agent import tasks as tasks_mod
 from agent.gamedata import ANIMALS, CROPS, LAND_PRICES, MARKET_PARAMS, TERMINAL_STEP
 from agent.params import DEFAULT, Params
@@ -205,12 +204,7 @@ def _market_orders(obs: dict, plan: Plan, params: Params) -> list[list]:
         sum(inv.values()) for inv in obs["private"].get("inventories", [])
     )
 
-    if params.use_sell_planner:
-        for order in selling.plan_sales(plan, params, shed_used):
-            if len(orders) >= params.max_orders:
-                break
-            orders.append(order)
-    elif day >= params.sell_start_day:
+    if day >= params.sell_start_day:
         sellable = []
 
         for product, held in shed.items():
@@ -234,12 +228,10 @@ def _market_orders(obs: dict, plan: Plan, params: Params) -> list[list]:
         for _, product, held in sellable:
             if len(orders) >= params.max_orders:
                 break
-            qty = held
-            if params.sell_batch_max and shed_used < params.shed_soft_cap:
-                qty = min(held, params.sell_batch_max)
-            orders.append(["SELL", product, qty])
+            orders.append(["SELL", product, held])
 
     return orders[: params.max_orders]
+
 
 
 def _fib(n: int) -> int:

@@ -1,6 +1,7 @@
 research/
 
 dist/
+runs/
 
 .venv/
 __pycache__/

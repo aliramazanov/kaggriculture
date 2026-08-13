@@ -449,13 +449,11 @@ class Plan:
         # dumping them early is giving away most of their value.
         margin = self.p.premium_hold_margin if product in PREMIUM else self.p.hold_margin
 
-        # Subtractive holds while the unit is expected to gain more than
-        # `margin` coins by waiting. Dividing instead scales the reserve *down*
-        # as the margin rises, so every setting sells on sight and holding can
-        # never happen; that is kept only to reproduce the old behaviour.
-        reserve = (
-            later - margin if self.p.hold_subtractive else later / max(0.01, margin)
-        )
+        # Dividing here scales the reserve down as the margin rises, so a larger
+        # margin sells sooner rather than later. Subtracting reads the right way
+        # round but measured worse, so the behaviour is kept and the name is the
+        # thing that is wrong.
+        reserve = later / max(0.01, margin)
 
         if self.p.frontrun_enabled:
             pending = self._pressure.get(product, 0.0)

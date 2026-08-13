@@ -24,11 +24,11 @@ class Params:
     # growing, while an unfed animal stops producing entirely.
     target_goose: int = 0
     target_cow: int = 6
-    target_sheep: int = 5
-    target_wheat: int = 36
-    target_carrot: int = 3
-    target_melon: int = 16
-    target_strawberry: int = 18
+    target_sheep: int = 7
+    target_wheat: int = 42
+    target_carrot: int = 0
+    target_melon: int = 19
+    target_strawberry: int = 22
     target_tomato: int = 2
 
     # Expansion: the day each extra quadrant becomes eligible for purchase.
@@ -46,7 +46,7 @@ class Params:
     # targets bend toward that draw; the clamps stop one lucky draw from
     # rewriting the whole plan. counter_strength shifts the build away from
     # whatever the opponent is already growing. Zero disables either.
-    shop_adapt_strength: float = 0.154
+    shop_adapt_strength: float = 0.316
     shop_adapt_clamp_lo: float = 0.7
     shop_adapt_clamp_hi: float = 1.3
     counter_strength: float = 0.0
@@ -57,16 +57,16 @@ class Params:
     # they tend, so the real limit is useful work to give them, not cash.
     hands_by_day: tuple[int, ...] = (4, 6, 8, 10, 11, 12, 12, 12)
     hands_steady: int = 12
-    min_cash_for_hire: int = 150
-    reserve_hire_days: float = 0.707
+    min_cash_for_hire: int = 212
+    reserve_hire_days: float = 0.646
 
     # Animals. Purchases come out of surplus cash only: buying ahead of income
     # leaves nothing to hire with, and the farm then cannot feed what it bought.
     # Buys are ordered by expected value, so the most productive animal is taken
     # first when only one is affordable.
-    structure_max_distance: int = 5
+    structure_max_distance: int = 2
     animal_start_day: int = 0
-    animal_cash_buffer: int = 433
+    animal_cash_buffer: int = 394
     max_animal_buys_per_turn: int = 2
     require_home_before_buy: bool = False
 
@@ -74,9 +74,9 @@ class Params:
     # reserve keeps enough back that a good selling price cannot starve the herd,
     # and feed is collected in batches because one trip to the shed should serve
     # many animals rather than one.
-    feed_pickup_batch: int = 6
+    feed_pickup_batch: int = 8
     wheat_feed_reserve: int = 12
-    wheat_days_cover: int = 2
+    wheat_days_cover: int = 3
     emergency_feed: bool = False
     wheat_buy_hour: int = 20
 
@@ -85,26 +85,19 @@ class Params:
     # decide who wins. Feeding and caring only pay together: feeding alone keeps
     # the animal alive but leaves the bonus unclaimed.
     care_enabled: bool = True
-    feed_priority: float = 3.42
-    care_priority: float = 3.077
+    feed_priority: float = 5.0
+    care_priority: float = 1.5
 
     # Market. The shed holds 100 items and destroys the overflow at end of day,
     # so selling starts before that cap rather than at it.
-    seed_batch: int = 3
+    seed_batch: int = 5
     max_orders: int = 10
     shed_soft_cap: int = 78
 
-    # Prices do rise as the town consumes the pool, so holding stock looks
-    # profitable. The pool is shared, though: time spent waiting for a better
-    # price is time the opponent can sell into it first. A unit is held only when
-    # the expected gain clears the margin below.
-    # Coins of expected future gain that justify keeping a unit rather than
-    # selling it now. Applied by subtraction from the expected later price.
-    # Route selling through agent/selling.py, which chooses a quantity per
-    # product by walking units against the projected later price, instead of the
-    # single all-or-nothing threshold below.
-    use_sell_planner: bool = False
-    hold_subtractive: bool = False
+    # Selling. A unit is kept back only when the price it should fetch later,
+    # once the town has drained the pool, beats the price on offer now by more
+    # than the margin. Premium goods get their own margin because their prices
+    # move much further over a season than a staple's.
     hold_margin: float = 4.0
     premium_hold_margin: float = 4.0
     hold_horizon_steps: int = 96
@@ -116,13 +109,7 @@ class Params:
     # urgent; weighting by how steeply a product's price falls when the pool
     # fills puts the fragile lines first, where losing the slot costs most.
     # 0 disables the weighting and ranks purely by value.
-    sell_glut_weight: float = 1.0
-
-    # Largest quantity of one product to sell in a single order. Each unit in an
-    # order is priced against the pool as it fills, so a large order walks its
-    # own price down. Spreading the same stock over several turns lets the town
-    # drain the pool in between. 0 removes the cap and sells everything held.
-    sell_batch_max: int = 0
+    sell_glut_weight: float = 0.995
 
     # How a freed tile picks its next crop. Ranking by shortfall times value lets
     # a cheap, fast-cycling crop win every tile: wheat is harvested and destroyed
@@ -142,7 +129,7 @@ class Params:
     # yield, which on an expensive crop beats what the fertilizer itself fetches.
     # It is applied selectively: fertilizing every tile costs more than it earns.
     fertilize_enabled: bool = True
-    fertilize_min_gain: float = 165.764
+    fertilize_min_gain: float = 148.199
 
     # Slow crops have to be planted early or they never finish. Strawberry first
     # yields at age 10 and keeps yielding to age 16, so a late planting forfeits
@@ -153,7 +140,7 @@ class Params:
     # Scheduling weights. Jobs are priced in coins, then discounted by how far a
     # unit must walk to reach them, so a distant job has to be worth more than a
     # near one to win. The rest of these bias that contest.
-    weed_dig_share: float = 0.593
+    weed_dig_share: float = 0.475
     weed_dig_value: float = 40.0
     drop_value: float = 260.0
     drop_min_items: int = 6
@@ -162,17 +149,17 @@ class Params:
     # end of each day every unit's inventory moves to the shed anyway, so a
     # mid-day trip buys only the chance to sell one day sooner. It must not be
     # allowed to crowd out field work.
-    drop_urgency: float = 0.289
+    drop_urgency: float = 0.431
 
-    base_water_share: float = 0.384
-    window_water_bonus: float = 1.17
+    base_water_share: float = 0.3
+    window_water_bonus: float = 1.524
     idle_plant_bonus: float = 1.15
     zone_pull: float = 0.0
 
     # Once a unit starts walking toward a job it keeps that job unless another is
     # clearly better. Without this the plan is rebuilt every turn and units
     # oscillate between two targets, walking all season and arriving nowhere.
-    sticky_bonus: float = 1.449
+    sticky_bonus: float = 1.021
 
     def evolve(self, **kw) -> Params:
         """Return a copy with the named fields changed.
