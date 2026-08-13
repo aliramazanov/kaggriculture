@@ -426,8 +426,10 @@ class Plan:
         return living * max(0, SEASON_DAYS - self.day)
 
     def hire_target(self) -> int:
-        table = self.p.hands_by_day
-        return table[self.day] if self.day < len(table) else self.p.hands_steady
+        """Hands to run today: a ramp early, the steady figure once it is reached."""
+        ramped = self.p.hands_open + self.p.hands_ramp * self.day
+
+        return min(self.p.hands_steady, ramped)
 
     def reserve_price(self, product: str) -> float:
         """Below this, hold the unit rather than sell it.

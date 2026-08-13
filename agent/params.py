@@ -25,10 +25,10 @@ class Params:
     target_goose: int = 0
     target_cow: int = 6
     target_sheep: int = 7
-    target_wheat: int = 42
+    target_wheat: int = 46
     target_carrot: int = 0
-    target_melon: int = 19
-    target_strawberry: int = 22
+    target_melon: int = 18
+    target_strawberry: int = 20
     target_tomato: int = 2
 
     # Expansion: the day each extra quadrant becomes eligible for purchase.
@@ -37,8 +37,8 @@ class Params:
     # operating reserve, so in practice the farm buys land as soon as it can
     # afford it. The third quadrant costs $4,000 and adds 25 tiles that the
     # available hands cannot keep watered, so it is left off with day 99.
-    land_day_ne: int = 4
-    land_day_sw: int = 8
+    land_day_ne: int = 3
+    land_day_sw: int = 10
     land_day_se: int = 99
 
     # The town opens shops at random through the season, and which shops open
@@ -55,19 +55,24 @@ class Params:
     # following a Fibonacci sequence, so the tenth hand of a day is cheap and the
     # fifteenth is not. Even so, a day of hands costs far less than the crops
     # they tend, so the real limit is useful work to give them, not cash.
-    hands_by_day: tuple[int, ...] = (4, 6, 8, 10, 11, 12, 12, 12)
+    # The first days are hired from a ramp rather than the steady figure, since
+    # early cash is scarce and each extra hand on the same day costs more than
+    # the last. Expressed as two numbers rather than a table so that a search can
+    # reach them: a tuple field is invisible to one.
+    hands_open: int = 3          # hands on day 0
+    hands_ramp: int = 1          # added per day until the steady figure is met
     hands_steady: int = 12
-    min_cash_for_hire: int = 212
-    reserve_hire_days: float = 0.646
+    min_cash_for_hire: int = 201
+    reserve_hire_days: float = 0.5
 
     # Animals. Purchases come out of surplus cash only: buying ahead of income
     # leaves nothing to hire with, and the farm then cannot feed what it bought.
     # Buys are ordered by expected value, so the most productive animal is taken
     # first when only one is affordable.
-    structure_max_distance: int = 2
+    structure_max_distance: int = 3
     animal_start_day: int = 0
-    animal_cash_buffer: int = 394
-    max_animal_buys_per_turn: int = 2
+    animal_cash_buffer: int = 195
+    max_animal_buys_per_turn: int = 1
     require_home_before_buy: bool = False
 
     # Feeding. Animals eat wheat, so the farm both grows it and buys it. The
@@ -101,7 +106,7 @@ class Params:
     hold_margin: float = 4.0
     premium_hold_margin: float = 4.0
     hold_horizon_steps: int = 96
-    sell_start_day: int = 3
+    sell_start_day: int = 4
 
     # Order in which our own sells are queued. Orders resolve in list order, so
     # the earlier slot takes the better price when both players sell the same
