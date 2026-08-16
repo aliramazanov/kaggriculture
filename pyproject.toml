@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 # Pinned, not floated. The agent's market model is calibrated against this exact
 # engine build; a minor bump can silently change price curves or town demand and
 # invalidate every parameter in agent/params.py. tests/engine_ref.py asserts it.
-dependencies = ["kaggle-environments==1.32.6"]
+dependencies = ["kaggle-environments==1.32.7"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6"]

@@ -291,7 +291,7 @@ def generate(obs: dict, plan, params: Params) -> list[Task]:
                 tasks.append(Task(x, y, ["HARVEST"], worth, "HARVEST"))
 
             if tile.get("fertilizer_available"):
-                worth = _unit_price(prices, "FERTILIZER")
+                worth = _unit_price(prices, "FERTILIZER") * params.fert_priority
                 tasks.append(Task(x, y, ["COLLECT_FERTILIZER"], worth, "FERT"))
 
     tasks.extend(_shed_tasks(obs, plan, params, board))

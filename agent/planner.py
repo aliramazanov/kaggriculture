@@ -347,12 +347,17 @@ class Plan:
         and escaped animals are unrecoverable, so that case is worth the whole
         remaining stream plus the price of replacing the animal.
         """
+        data = ANIMALS[animal]
+
+        # No end-of-season cutoff here, unlike caring. An animal that escapes
+        # takes whatever it has not yet had harvested with it, so feeding still
+        # protects stock on the last days even once no production tick remains.
         stream = self.place_value(animal, day)
 
         if urgent:
-            return (stream + ANIMALS[animal]["cost"]) * self.p.feed_priority
+            return (stream + data["cost"]) * self.p.feed_priority
 
-        return (stream * 0.45 + self._price(ANIMALS[animal]["product"])) * self.p.feed_priority
+        return (stream * 0.45 + self._price(data["product"])) * self.p.feed_priority
 
     def care_value(self, animal: str, day: int) -> float:
         """Caring adds one unit, delivered at the animal's next production."""
@@ -426,7 +431,6 @@ class Plan:
         return living * max(0, SEASON_DAYS - self.day)
 
     def hire_target(self) -> int:
-        """Hands to run today: a ramp early, the steady figure once it is reached."""
         ramped = self.p.hands_open + self.p.hands_ramp * self.day
 
         return min(self.p.hands_steady, ramped)
@@ -443,12 +447,11 @@ class Plan:
 
         inv = self.inventory.get(product, MARKET_PARAMS[product]["I0"])
         later = market.future_price(product, inv, self.step, self.shops, self.p.hold_horizon_steps)
-        # Products split into two regimes and one global setting cannot serve
-        # both. Wheat, egg and carrot have logarithmic glut curves and heavy
-        # town demand, so their price barely moves and holding only risks the
-        # shed cap: sell on sight. Strawberry, milk, wool and melon get steadily
-        # scarcer all season (strawberry runs $120 on day 0 to $400+ late), so
-        # dumping them early is giving away most of their value.
+        # The two groups differ in how fast the price falls as the pool fills.
+        # Wheat and egg fall logarithmically at 0.20 and carrot as a square root
+        # at 0.70, so the price holds up and a unit sold now costs the next one
+        # little. Strawberry and milk fall linearly at 1.60, wool and melon
+        # quadratically at 3.20 and 3.60, where each unit sold cuts the next.
         margin = self.p.premium_hold_margin if product in PREMIUM else self.p.hold_margin
 
         # Dividing here scales the reserve down as the margin rises, so a larger

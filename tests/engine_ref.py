@@ -15,7 +15,7 @@ from importlib.metadata import version
 
 from kaggle_environments.envs.kaggriculture import kaggriculture as engine
 
-PINNED_VERSION = "1.32.6"
+PINNED_VERSION = "1.32.7"
 
 _installed = version("kaggle-environments")
 

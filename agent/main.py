@@ -80,9 +80,18 @@ def _market_orders(obs: dict, plan: Plan, params: Params) -> list[list]:
     # market orders in the same turn, so goods dropped at the shed this turn can
     # still be sold this turn.
     if step >= TERMINAL_STEP - 2:
-        for product in sorted(shed, key=lambda p: -plan._price(p) if p in MARKET_PARAMS else 0):
-            if product in MARKET_PARAMS and shed.get(product, 0) > 0:
-                orders.append(["SELL", product, shed[product]])
+        # Count what units are carrying as well. Anything they drop this turn is
+        # in the shed before the order runs, and a sell that asks for more than
+        # the shed holds stops at what is there rather than being rejected.
+        leaving = dict(shed)
+
+        for inv in obs["private"].get("inventories", []):
+            for product, qty in inv.items():
+                leaving[product] = leaving.get(product, 0) + qty
+
+        for product in sorted(leaving, key=lambda p: -plan._price(p) if p in MARKET_PARAMS else 0):
+            if product in MARKET_PARAMS and leaving.get(product, 0) > 0:
+                orders.append(["SELL", product, leaving[product]])
         return orders[: params.max_orders]
 
     # Labour, taken before anything else and out of the protected reserve.
@@ -288,22 +297,34 @@ def act(obs: dict, params: Params = DEFAULT) -> dict:
         sticky=state["targets"],
         sticky_bonus=params.sticky_bonus,
         zone_pull=params.zone_pull,
+        idle_reposition=params.idle_reposition,
     )
 
     state["targets"] = targets
 
     # On the final executable turns, get everything carried into the shed so the
     # market orders below can convert it to coins before the season ends.
-    if plan.step >= TERMINAL_STEP - 2:
-        shed_set = set(tasks_mod.shed_tiles(board))
+    # Each unit leaves when its own distance says it must, not on a shared turn.
+    # A fixed two-turn window stranded everything further out than two tiles,
+    # since the walk home is one tile per turn and TERMINAL_STEP is the last turn
+    # whose DROP still reaches the market.
+    shed_set = set(tasks_mod.shed_tiles(board))
+    turns_left = TERMINAL_STEP - plan.step
 
+    if shed_set and turns_left <= board:
         for i, (ux, uy) in enumerate(units):
             if sum(inventories[i].values()) <= 0:
                 continue
-            if (ux, uy) in shed_set:
+
+            target = min(shed_set, key=lambda t: abs(t[0] - ux) + abs(t[1] - uy))
+            distance = abs(target[0] - ux) + abs(target[1] - uy)
+
+            if turns_left > distance:
+                continue
+
+            if distance == 0:
                 unit_actions[i] = ["DROP"]
             else:
-                target = min(shed_set, key=lambda t: abs(t[0] - ux) + abs(t[1] - uy))
                 unit_actions[i] = assign_mod.step_towards(ux, uy, target[0], target[1])
 
     return {

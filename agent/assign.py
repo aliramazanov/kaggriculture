@@ -17,12 +17,12 @@ from agent.tasks import Task
 
 
 def manhattan(ax: int, ay: int, bx: int, by: int) -> int:
-    """Steps between two tiles. Units move one tile per turn along an axis."""
+    """A unit moves one tile per turn along an axis, so distance is the step count."""
     return abs(ax - bx) + abs(ay - by)
 
 
 def step_towards(fx: int, fy: int, tx: int, ty: int) -> list[str]:
-    """One move that closes the gap, taking the longer axis first."""
+    """Longer axis first, which keeps a path straight instead of stepping diagonally."""
     dx, dy = tx - fx, ty - fy
 
     if abs(dx) >= abs(dy):
@@ -45,8 +45,6 @@ def _carrying(inv: dict) -> int:
 
 
 def _can_do(task: Task, inv: dict) -> bool:
-    """Whether this unit holds what the job needs, and is not already too full."""
-
     if task.avoid is not None:
         item, limit = task.avoid
         if inv.get(item, 0) >= limit:
@@ -92,6 +90,7 @@ def assign(
     sticky: dict[int, tuple[int, int]] | None = None,
     sticky_bonus: float = 1.0,
     zone_pull: float = 0.0,
+    idle_reposition: bool = True,
 ) -> tuple[list[list], dict[int, tuple[int, int]]]:
     """Give every unit an action, and report the tile each one is heading for.
 
@@ -166,6 +165,28 @@ def assign(
             actions[ui] = list(task.op)
         else:
             actions[ui] = step_towards(ux, uy, task.x, task.y)
+
+    # A unit that matched nothing spends the turn either way, so it walks toward
+    # the nearest job it could take rather than standing still. Jobs are claimed
+    # one unit each and the farm generates several times more of them than there
+    # are hands, so an unmatched unit is nearly always short of somewhere useful
+    # to be, and arriving early spends a turn that would otherwise be spent later.
+    for ui, action in enumerate(actions):
+        if action is not None or not idle_reposition:
+            continue
+
+        ux, uy = units[ui]
+        inv = inventories[ui] if ui < len(inventories) else {}
+
+        reachable = [
+            task for ti, task in enumerate(tasks) if ti not in claimed and _can_do(task, inv)
+        ]
+
+        if not reachable:
+            continue
+
+        target = min(reachable, key=lambda t: manhattan(ux, uy, t.x, t.y))
+        actions[ui] = step_towards(ux, uy, target.x, target.y)
 
     # Units that matched nothing still have to return a legal action.
     return [a if a is not None else ["PASS"] for a in actions], targets

@@ -22,11 +22,17 @@ class Params:
     # what the hands can service long before it grows past what the market can
     # absorb. Crops are cheaper to hold because an unwatered tile only stops
     # growing, while an unfed animal stops producing entirely.
+    #
+    # A crop whose target is zero is never eligible for an empty tile, whatever
+    # the market is paying, because eligibility is a shortfall test and only the
+    # ranking that follows it reads the price. Carrot is held above zero so that
+    # ranking can reach it: it first yields on day 2, and past 450 units below
+    # equilibrium its price climbs quadratically rather than linearly.
     target_goose: int = 0
     target_cow: int = 6
     target_sheep: int = 7
     target_wheat: int = 46
-    target_carrot: int = 0
+    target_carrot: int = 8
     target_melon: int = 18
     target_strawberry: int = 20
     target_tomato: int = 2
@@ -53,14 +59,11 @@ class Params:
 
     # Labour. Each extra hand hired on the same day costs more than the last,
     # following a Fibonacci sequence, so the tenth hand of a day is cheap and the
-    # fifteenth is not. Even so, a day of hands costs far less than the crops
-    # they tend, so the real limit is useful work to give them, not cash.
-    # The first days are hired from a ramp rather than the steady figure, since
-    # early cash is scarce and each extra hand on the same day costs more than
-    # the last. Expressed as two numbers rather than a table so that a search can
-    # reach them: a tuple field is invisible to one.
-    hands_open: int = 3          # hands on day 0
-    hands_ramp: int = 1          # added per day until the steady figure is met
+    # fifteenth is not. The early days are cash-constrained rather than
+    # labour-constrained, so hiring ramps up instead of starting at full crew.
+    # Two numbers rather than a table because a search cannot reach a tuple.
+    hands_open: int = 2
+    hands_ramp: int = 1
     hands_steady: int = 12
     min_cash_for_hire: int = 201
     reserve_hire_days: float = 0.5
@@ -71,15 +74,19 @@ class Params:
     # first when only one is affordable.
     structure_max_distance: int = 3
     animal_start_day: int = 0
-    animal_cash_buffer: int = 195
+    animal_cash_buffer: int = 80
     max_animal_buys_per_turn: int = 1
     require_home_before_buy: bool = False
 
     # Feeding. Animals eat wheat, so the farm both grows it and buys it. The
-    # reserve keeps enough back that a good selling price cannot starve the herd,
-    # and feed is collected in batches because one trip to the shed should serve
-    # many animals rather than one.
-    feed_pickup_batch: int = 8
+    # reserve keeps enough back that a good selling price cannot starve the herd.
+    #
+    # Feed is carried in small loads rather than large ones. A unit holding wheat
+    # is the only kind that can take a FEED job, and feeding is priced above most
+    # field work, so a big load commits that unit to feeding for as many turns as
+    # it can carry. Whatever it has left goes back to the shed at the end of the
+    # day regardless, so carrying more than the next animals need buys nothing.
+    feed_pickup_batch: int = 3
     wheat_feed_reserve: int = 12
     wheat_days_cover: int = 3
     emergency_feed: bool = False
@@ -92,6 +99,14 @@ class Params:
     care_enabled: bool = True
     feed_priority: float = 5.0
     care_priority: float = 1.5
+
+    # Fertilizer is offered once per animal per day as a flag rather than a
+    # counter, so an animal left uncollected today does not hold two tomorrow.
+    # Nothing in the town consumes fertilizer either, so its pool never refills
+    # and both farms are drawing down the same fixed stock: a unit collected
+    # first is one the other side cannot sell at all. Priced at the bare market
+    # price it loses to feeding and caring, which carry multipliers of their own.
+    fert_priority: float = 2.6
 
     # Market. The shed holds 100 items and destroys the overflow at end of day,
     # so selling starts before that cap rather than at it.
@@ -106,7 +121,11 @@ class Params:
     hold_margin: float = 4.0
     premium_hold_margin: float = 4.0
     hold_horizon_steps: int = 96
-    sell_start_day: int = 4
+
+    # Both farms sell into one pool, and the first unit in gets the better price
+    # because every unit sold lowers the next one. Waiting hands the early sales
+    # to the other side.
+    sell_start_day: int = 2
 
     # Order in which our own sells are queued. Orders resolve in list order, so
     # the earlier slot takes the better price when both players sell the same
@@ -156,8 +175,20 @@ class Params:
     # allowed to crowd out field work.
     drop_urgency: float = 0.431
 
+    # A unit that matches no job walks toward the nearest one it could take
+    # instead of standing still. Measured worse: it cuts idle turns from 6% to
+    # 3% but converts them into travel rather than work, and units drift toward
+    # jobs another unit then takes.
+    idle_reposition: bool = False
+
     base_water_share: float = 0.3
-    window_water_bonus: float = 1.524
+
+    # A one-time crop gains a unit only on a day it is watered inside its yield
+    # window, and the windows are short: wheat days 2 to 4, carrot 2 to 3. A day
+    # missed there is a unit that tile will never hold, because harvesting a
+    # one-time crop clears the tile and there is no later chance to make it up.
+    # Watering in the window is therefore worth far more than watering outside it.
+    window_water_bonus: float = 7.0
     idle_plant_bonus: float = 1.15
     zone_pull: float = 0.0
 

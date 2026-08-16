@@ -27,7 +27,10 @@ from agent.gamedata import (
 _AMP_CACHE: dict[tuple[str, bool], float] = {}
 
 
-def _shape(func: str, x: float) -> float:
+HINGE_GAIN = 8.0
+
+
+def _shape(func: str, x: float, t: float | None = None) -> float:
     x = max(0.0, x)
 
     if func == "linear":
@@ -45,6 +48,15 @@ def _shape(func: str, x: float) -> float:
     if func == "log10":
         return math.log10(1.0 + x)
 
+    # Linear up to T, quadratic past it, so the price is flat while the pool is
+    # merely low and runs away once the product is genuinely scarce.
+    if func == "hinge":
+        if not t or t <= 0:
+            return x
+
+        u = x / t
+        return u + HINGE_GAIN * max(0.0, u - 1.0) ** 2
+
     return x
 
 
@@ -56,7 +68,7 @@ def _amp(item: str, below: bool) -> float:
         p = MARKET_PARAMS[item]
         side = "below" if below else "above"
 
-        cached = p[f"{side}_target"] * p["base"] / _shape(p[f"{side}_func"], p["T"])
+        cached = p[f"{side}_target"] * p["base"] / _shape(p[f"{side}_func"], p["T"], p["T"])
 
         _AMP_CACHE[key] = cached
 
@@ -70,9 +82,9 @@ def price(item: str, inventory: float) -> int:
     base, i0 = p["base"], p["I0"]
 
     if inventory < i0:
-        value = base + _amp(item, True) * _shape(p["below_func"], i0 - inventory)
+        value = base + _amp(item, True) * _shape(p["below_func"], i0 - inventory, p["T"])
     else:
-        value = base - _amp(item, False) * _shape(p["above_func"], inventory - i0)
+        value = base - _amp(item, False) * _shape(p["above_func"], inventory - i0, p["T"])
 
     return max(PRICE_FLOOR, int(round(value)))
 
