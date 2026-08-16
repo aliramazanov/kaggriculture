@@ -91,6 +91,9 @@ class Params:
     wheat_days_cover: int = 3
     emergency_feed: bool = False
     wheat_buy_hour: int = 20
+    feed_any_hour: bool = False
+    feed_cheap_ratio: float = 0.0
+    feed_cheap_days: float = 3.0
 
     # Upkeep priority. An animal that is both fed and cared for yields one extra
     # unit, so care competes with field work for the same hands. These weights
@@ -134,6 +137,11 @@ class Params:
     # fills puts the fragile lines first, where losing the slot costs most.
     # 0 disables the weighting and ranks purely by value.
     sell_glut_weight: float = 0.995
+
+    # Unit actions resolve before market orders, so stock dropped this turn is
+    # in the shed before the sell runs, and an oversized ask stops at what is
+    # there rather than being rejected.
+    sell_includes_carried: bool = True
 
     # How a freed tile picks its next crop. Ranking by shortfall times value lets
     # a cheap, fast-cycling crop win every tile: wheat is harvested and destroyed
@@ -197,6 +205,10 @@ class Params:
     # oscillate between two targets, walking all season and arriving nowhere.
     sticky_bonus: float = 1.021
 
+    # A searched day-by-day build plan. When set it replaces the parametric
+    # hiring, land, animal, seed and feed rules; selling stays reactive.
+    econ_plan: tuple = ()
+
     def evolve(self, **kw) -> Params:
         """Return a copy with the named fields changed.
 
@@ -207,4 +219,3 @@ class Params:
 
 
 DEFAULT = Params()
-
