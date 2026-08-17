@@ -94,6 +94,7 @@ class Params:
     feed_any_hour: bool = False
     feed_cheap_ratio: float = 0.0
     feed_cheap_days: float = 3.0
+    feed_stock: int = 0
 
     # Upkeep priority. An animal that is both fed and cared for yields one extra
     # unit, so care competes with field work for the same hands. These weights
@@ -101,6 +102,7 @@ class Params:
     # the animal alive but leaves the bonus unclaimed.
     care_enabled: bool = True
     feed_priority: float = 5.0
+    feed_fresh_scale: float = 1.0
     care_priority: float = 1.5
 
     # Fertilizer is offered once per animal per day as a flag rather than a
@@ -113,6 +115,10 @@ class Params:
 
     # Market. The shed holds 100 items and destroys the overflow at end of day,
     # so selling starts before that cap rather than at it.
+    # A seed is created one day dry, so it must be watered on its planting day
+    # or it weeds that night. Planting after this hour cannot be watered in time.
+    plant_last_hour: int = 23
+
     seed_batch: int = 5
     max_orders: int = 10
     shed_soft_cap: int = 78
@@ -160,8 +166,13 @@ class Params:
     # Fertilizer is worth more spent than sold. Spreading it doubles a scheduled
     # yield, which on an expensive crop beats what the fertilizer itself fetches.
     # It is applied selectively: fertilizing every tile costs more than it earns.
+    # Fertilizer is only worth spending where the tile would otherwise finish
+    # under its yield cap, which is wheat and carrot alone. What it costs moves
+    # from $100 to about $11 across a season, so the gate prices the fertilizer
+    # rather than testing the gain against a constant.
     fertilize_enabled: bool = True
-    fertilize_min_gain: float = 148.199
+    fertilize_cost_ratio: float = 1.0
+    fertilize_min_gain: float = 0.0
 
     # Slow crops have to be planted early or they never finish. Strawberry first
     # yields at age 10 and keeps yielding to age 16, so a late planting forfeits
@@ -205,9 +216,10 @@ class Params:
     # oscillate between two targets, walking all season and arriving nowhere.
     sticky_bonus: float = 1.021
 
-    # A searched day-by-day build plan. When set it replaces the parametric
-    # hiring, land, animal, seed and feed rules; selling stays reactive.
-    econ_plan: tuple = ()
+    # A searched day-by-day curve of build targets. Empty means the constants
+    # above hold all season. Targets rather than orders, so every reactive
+    # affordability and placement check still applies.
+    target_plan: tuple = ()
 
     def evolve(self, **kw) -> Params:
         """Return a copy with the named fields changed.

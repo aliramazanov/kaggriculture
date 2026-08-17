@@ -1,37 +1,40 @@
-"""A day-by-day build plan the agent follows instead of deriving one.
+"""A day-by-day target curve the planner aims at.
 
-The parametric rules in `main` decide hiring, animals, land, seed and feed from
-smooth functions of the day and the bank. A schedule states them outright, one
-row per day, which is a thing a search can optimise directly.
+The planner derives its build targets from one constant per crop and animal,
+held for the whole season. A schedule states them per day instead, which is a
+thing a search can shape directly.
 
-Selling is deliberately not scheduled. It has to read the pool, and a fixed
-sell plan cannot.
+Targets, not purchases. Scheduling the purchases themselves measured about nine
+points worse than the reactive rules, because a fixed order fires whether or not
+the farm can afford it or has anywhere to put it. A target keeps every reactive
+check and only moves the goal, so a flat schedule reproduces current behaviour
+exactly.
 """
 
 from __future__ import annotations
 
 FIELDS = (
-    "hires",
+    "goose",
     "cow",
     "sheep",
-    "goose",
-    "land",
-    "seed_wheat",
-    "seed_carrot",
-    "seed_melon",
-    "seed_strawberry",
-    "seed_tomato",
-    "buy_wheat",
+    "wheat",
+    "carrot",
+    "melon",
+    "strawberry",
+    "tomato",
+    "hands",
 )
 
-ANIMAL_FIELDS = (("cow", "COW"), ("sheep", "SHEEP"), ("goose", "GOOSE"))
-SEED_FIELDS = (
-    ("seed_wheat", "WHEAT"),
-    ("seed_carrot", "CARROT"),
-    ("seed_melon", "MELON"),
-    ("seed_strawberry", "STRAWBERRY"),
-    ("seed_tomato", "TOMATO"),
-)
+KEYS = {
+    "goose": "GOOSE",
+    "cow": "COW",
+    "sheep": "SHEEP",
+    "wheat": "WHEAT",
+    "carrot": "CARROT",
+    "melon": "MELON",
+    "strawberry": "STRAWBERRY",
+    "tomato": "TOMATO",
+}
 
 WIDTH = len(FIELDS)
 
@@ -40,10 +43,26 @@ def row(day_plan: tuple[int, ...]) -> dict[str, int]:
     return dict(zip(FIELDS, day_plan, strict=False))
 
 
-def quota_for(plan: tuple[tuple[int, ...], ...], day: int) -> dict[str, int]:
+def for_day(plan: tuple[tuple[int, ...], ...], day: int) -> dict[str, int]:
     if not plan:
         return {}
+
     return row(plan[day]) if day < len(plan) else row(plan[-1])
+
+
+def seed_from(params, days: int) -> tuple[tuple[int, ...], ...]:
+    """The curve the current parameters already describe, so a search starts at parity.
+
+    Crop and animal targets are constant all season, but the crew is not: it
+    ramps from `hands_open` to `hands_steady`, and flattening it to the steady
+    figure hires a full crew on day zero and bankrupts the opening.
+    """
+    crops = tuple(int(getattr(params, f"target_{name}", 0)) for name in FIELDS if name != "hands")
+
+    return tuple(
+        crops + (min(int(params.hands_steady), int(params.hands_open + params.hands_ramp * d)),)
+        for d in range(days)
+    )
 
 
 def flatten(plan: tuple[tuple[int, ...], ...]) -> list[int]:

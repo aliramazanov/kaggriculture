@@ -13,6 +13,7 @@ open rather than fixed in advance.
 from __future__ import annotations
 
 from agent import market
+from agent import plan_schedule as schedule
 from agent.gamedata import ANIMALS, CROPS, MARKET_PARAMS, SEASON_DAYS
 from agent.params import Params
 
@@ -95,6 +96,10 @@ class Plan:
             "STRAWBERRY": p.target_strawberry,
             "TOMATO": p.target_tomato,
         }
+
+        if p.target_plan:
+            today = schedule.for_day(p.target_plan, self.day)
+            base = {key: today.get(name, base[key]) for name, key in schedule.KEYS.items()}
 
         unlocked = len(self.me["unlocked_quadrants"])
         scale = min(1.0, unlocked / 3.0)
@@ -431,6 +436,9 @@ class Plan:
         return living * max(0, SEASON_DAYS - self.day)
 
     def hire_target(self) -> int:
+        if self.p.target_plan:
+            return schedule.for_day(self.p.target_plan, self.day).get("hands", self.p.hands_steady)
+
         ramped = self.p.hands_open + self.p.hands_ramp * self.day
 
         return min(self.p.hands_steady, ramped)

@@ -111,43 +111,40 @@ def water_value(tile: dict, day: int, prices: dict, params: Params) -> float:
 def fertilize_value(tile: dict, day: int, prices: dict) -> float:
     """Extra yield one FERTILIZE buys, in coins.
 
-    Fertilizer is active for `day`, `day+1`, `day+2`, and only pays on days the
-    plant is also watered. Ongoing crops double a scheduled yield (1 -> 2);
-    one-time crops gain +2 instead of +1 per watered day inside their bonus
-    window.
+    Fertilizer is active for `day`, `day+1`, `day+2` and adds a second unit on
+    each of those days the plant also produces. It is worth nothing unless the
+    tile would otherwise finish below `max_yield`: a one-time crop starts at one
+    unit and a plant watered every day already reaches the cap on its own for
+    melon, tomato and strawberry, so only wheat and carrot have any slack.
     """
     crop = tile["crop"]
     data = CROPS[crop]
-    price = _unit_price(prices, crop)
 
     if tile.get("fertilized_until_day", -1) >= day:
-        return 0.0  # already covered
+        return 0.0
 
     age = day - tile["planted_day"]
-    extra = 0
+    cap = data["max_yield"]
 
+    # An ongoing crop keeps its tile through harvest, and we take its stock as
+    # soon as it holds any, so the cap almost never binds and every production
+    # day inside the window is worth a whole extra unit.
     if data["ongoing"]:
         interval = max(1, data["interval"])
-        # Only count yield days that fall inside the 3-day fertilizer window.
-        for d in range(day, day + 3):
-            a = d - tile["planted_day"]
+        events = [data["first_yield_day"] + k * interval for k in range(cap)]
+        extra = sum(1 for a in events if age <= a <= age + 2)
+        return extra * _unit_price(prices, crop)
 
-            if a < data["first_yield_day"]:
-                continue
+    # A one-time crop is cleared by its only harvest, so its cap binds inside a
+    # single life. Melon reaches it unaided and gains nothing.
+    window_start = (data["max_yield_day"] + 1) // 2
+    plain = boosted = tile.get("yield_units", 0)
 
-            if (a - data["first_yield_day"]) % interval:
-                continue
-            produced = (a - data["first_yield_day"]) // interval + 1
+    for a in range(max(age, window_start), data["max_yield_day"] + 1):
+        plain = min(cap, plain + 1)
+        boosted = min(cap, boosted + (2 if a <= age + 2 else 1))
 
-            if produced <= data["max_yield"]:
-                extra += 1
-    else:
-        window_start = (data["max_yield_day"] + 1) // 2
-        headroom = max(0, data["max_yield"] - tile.get("yield_units", 0))
-        days = sum(1 for d in range(3) if window_start <= age + d <= data["max_yield_day"])
-        extra = min(days, headroom)
-
-    return extra * price
+    return max(0.0, boosted - plain) * _unit_price(prices, crop)
 
 
 def harvest_value(tile: dict, prices: dict) -> float:
@@ -202,6 +199,7 @@ def generate(obs: dict, plan, params: Params) -> list[Task]:
     tiles = me["tiles"]
     board = len(tiles)
     day = obs["day"]
+    hour = obs["hour"]
     prices = obs["market"]["prices"]
     private = obs["private"]
     seeds = private["seeds"]
@@ -214,7 +212,14 @@ def generate(obs: dict, plan, params: Params) -> list[Task]:
                 continue
 
             if tile is None:
-                crop = plan.crop_for_empty_tile(x, y, seeds)
+                # A seed is created already one day dry, so one planted too late
+                # to be watered turns to weed the same night: the seed, the turn
+                # and the tile all go, and something then has to dig it out.
+                crop = (
+                    plan.crop_for_empty_tile(x, y, seeds)
+                    if hour <= params.plant_last_hour
+                    else None
+                )
                 if crop:
                     worth = plan.plant_value(crop, day) * params.idle_plant_bonus
                     tasks.append(Task(x, y, ["PLANT", crop], worth, "PLANT"))
@@ -247,10 +252,13 @@ def generate(obs: dict, plan, params: Params) -> list[Task]:
                     tasks.append(Task(x, y, ["WATER"], worth, "WATER"))
 
                 if params.fertilize_enabled:
-                    gain = fertilize_value(tile, day, prices)
-                    if gain >= params.fertilize_min_gain:
+                    net = fertilize_value(tile, day, prices) - (
+                        _unit_price(prices, "FERTILIZER") * params.fertilize_cost_ratio
+                    )
+
+                    if net >= params.fertilize_min_gain:
                         tasks.append(
-                            Task(x, y, ["FERTILIZE"], gain, "FERTILIZE", needs="FERTILIZER")
+                            Task(x, y, ["FERTILIZE"], net, "FERTILIZE", needs="FERTILIZER")
                         )
 
                 continue
@@ -275,6 +283,14 @@ def generate(obs: dict, plan, params: Params) -> list[Task]:
                 # plus the cost of replacing it.
                 urgent = tile.get("consecutive_unfed", 0) >= 1
                 worth = plan.feed_value(animal, day, urgent=urgent)
+
+                # Only the escape check and the care bonus read `fed_today`;
+                # base production does not. An animal fed yesterday can be left
+                # today and still yields, so a full day's feed is worth less than
+                # it looks when there is field work waiting.
+                if not urgent:
+                    worth *= params.feed_fresh_scale
+
                 tasks.append(Task(x, y, ["FEED"], worth, "FEED", needs="WHEAT"))
 
             # Care only pays on a day the animal is also fed, so caring an

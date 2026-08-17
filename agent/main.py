@@ -15,7 +15,6 @@ raising. An uncaught error ends the season as a loss.
 from __future__ import annotations
 
 from agent import assign as assign_mod
-from agent import plan_schedule as schedule
 from agent import tasks as tasks_mod
 from agent.gamedata import ANIMALS, CROPS, LAND_PRICES, MARKET_PARAMS, TERMINAL_STEP
 from agent.params import DEFAULT, Params
@@ -93,10 +92,8 @@ def _market_orders(obs: dict, plan: Plan, params: Params) -> list[list]:
         for product in sorted(leaving, key=lambda p: -plan._price(p) if p in MARKET_PARAMS else 0):
             if product in MARKET_PARAMS and leaving.get(product, 0) > 0:
                 orders.append(["SELL", product, leaving[product]])
-        return orders[: params.max_orders]
 
-    if params.econ_plan:
-        return _scheduled_orders(obs, plan, params, orders, afford)
+        return orders[: params.max_orders]
 
     # Labour, taken before anything else and out of the protected reserve.
     # Hands are what turn land into money, and a full day of them costs less than
@@ -108,10 +105,13 @@ def _market_orders(obs: dict, plan: Plan, params: Params) -> list[list]:
         # since leaving more unused caps hiring for no benefit.
         while n < want and len(orders) < params.max_orders - 2:
             cost = _fib(plan.me["hires_today"] + n)
+
             if money - cost < params.min_cash_for_hire:
                 break
+
             if not afford(cost):
                 break
+
             orders.append(["HIRE"])
             n += 1
 
@@ -175,9 +175,11 @@ def _market_orders(obs: dict, plan: Plan, params: Params) -> list[list]:
         if deficit > 0 and plan.plant_value(crop, day) > 0:
             want = min(deficit, params.seed_batch)
             cost = CROPS[crop]["seed"] * want
+
             while want > 0 and money - cost < plan.operating_reserve():
                 want -= 1
                 cost = CROPS[crop]["seed"] * want
+
             if want > 0 and afford(cost):
                 orders.append(["BUY_SEED", crop, want])
 
@@ -196,13 +198,23 @@ def _market_orders(obs: dict, plan: Plan, params: Params) -> list[list]:
         if cheap:
             need = max(need, living * params.feed_cheap_days)
 
+        # Growing a wheat unit costs about 1.75 unit-turns, and a turn spent on
+        # melon or strawberry earns three times what one spent on wheat does.
+        # Buying feed is the cheaper way to hold the same wheat whenever the
+        # shed has room for it.
+        if params.feed_stock > 0:
+            room = params.shed_soft_cap - sum(shed.values())
+            need = max(need, min(params.feed_stock, on_hand + max(0, room)))
+
         starving = params.emergency_feed and plan.unfed > 0 and on_hand <= 0
         due = params.feed_any_hour or cheap or hour == params.wheat_buy_hour
 
         if on_hand < need and (due or starving) and len(orders) < params.max_orders:
             want = int(need - on_hand)
+
             while want > 0 and money - unit * want < plan.operating_reserve():
                 want -= 1
+
             if want > 0 and afford(unit * want):
                 orders.append(["BUY_PRODUCT", "WHEAT", want])
 
@@ -233,18 +245,24 @@ def _sell_orders(obs: dict, plan: Plan, params: Params, orders: list) -> list[li
 
         for product in set(shed) | set(carried_now):
             held = shed.get(product, 0) + carried_now.get(product, 0)
+
             if held <= 0 or product not in MARKET_PARAMS:
                 continue
+
             if product == "WHEAT":
                 reserve = max(params.wheat_feed_reserve, living * params.wheat_days_cover)
                 held = max(0, held - reserve)
                 if held <= 0:
                     continue
+
             price_now = plan._price(product)
+
             glut = MARKET_PARAMS[product]["above_target"] if params.sell_glut_weight else 1.0
+
             urgency = glut**params.sell_glut_weight
             reserve = plan.reserve_price(product)
             forced = shed_used >= params.shed_soft_cap
+
             if forced or price_now >= reserve:
                 sellable.append((price_now * held * urgency, product, held))
 
@@ -258,80 +276,12 @@ def _sell_orders(obs: dict, plan: Plan, params: Params, orders: list) -> list[li
     return orders[: params.max_orders]
 
 
-def _scheduled_orders(obs: dict, plan: Plan, params: Params, orders: list, afford) -> list[list]:
-    # Read the record directly: _episode_state treats a repeat call on the same
-    # step as a new season and would clear the quota every turn.
-    state = _STATE.setdefault(obs.get("player", 0), {})
-    quota = state.get("quota")
-
-    if quota is None or state.get("quota_day") != plan.day:
-        quota = dict(schedule.quota_for(params.econ_plan, plan.day))
-        state["quota"], state["quota_day"] = quota, plan.day
-
-    money = plan.money
-    reserve = plan.operating_reserve()
-
-    def take(key: str, cost: float, floor: float) -> bool:
-        nonlocal money
-        if quota.get(key, 0) <= 0 or len(orders) >= params.max_orders:
-            return False
-        if money - cost < floor or not afford(cost):
-            return False
-        money -= cost
-        quota[key] -= 1
-        return True
-
-    while quota.get("hires", 0) > 0 and len(orders) < params.max_orders:
-        cost = _fib(plan.me["hires_today"] + sum(o[0] == "HIRE" for o in orders))
-        if not take("hires", cost, params.min_cash_for_hire):
-            break
-        orders.append(["HIRE"])
-
-    owned_extra = len(plan.me["unlocked_quadrants"]) - 1
-    if (
-        quota.get("land", 0) > 0
-        and owned_extra < len(LAND_PRICES)
-        and take("land", LAND_PRICES[owned_extra], reserve)
-    ):
-        orders.append(["BUY_LAND"])
-
-    for key, animal in schedule.ANIMAL_FIELDS:
-        while quota.get(key, 0) > 0:
-            if not take(key, ANIMALS[animal]["cost"], reserve + params.animal_cash_buffer):
-                break
-            orders.append(["BUY_ANIMAL", animal, 1])
-
-    for key, crop in schedule.SEED_FIELDS:
-        want = quota.get(key, 0)
-        if want <= 0 or len(orders) >= params.max_orders:
-            continue
-        cost = CROPS[crop]["seed"]
-        n = 0
-        while n < want and money - cost >= reserve and afford(cost):
-            money -= cost
-            n += 1
-        if n:
-            quota[key] -= n
-            orders.append(["BUY_SEED", crop, n])
-
-    want = quota.get("buy_wheat", 0)
-    if want > 0 and len(orders) < params.max_orders:
-        unit = plan._price("WHEAT")
-        n = 0
-        while n < want and money - unit >= reserve and afford(unit):
-            money -= unit
-            n += 1
-        if n:
-            quota["buy_wheat"] -= n
-            orders.append(["BUY_PRODUCT", "WHEAT", n])
-
-    return _sell_orders(obs, plan, params, orders)
-
-
 def _fib(n: int) -> int:
     a, b = 1, 1
+
     for _ in range(n):
         a, b = b, a + b
+
     return a
 
 
