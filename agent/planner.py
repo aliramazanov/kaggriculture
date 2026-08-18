@@ -13,9 +13,9 @@ open rather than fixed in advance.
 from __future__ import annotations
 
 from agent import market
-from agent import plan_schedule as schedule
 from agent.gamedata import ANIMALS, CROPS, MARKET_PARAMS, SEASON_DAYS
 from agent.params import Params
+from agent.plan_schedule import KEYS, for_day
 
 PREMIUM = ("STRAWBERRY", "MILK", "WOOL", "MELON")
 
@@ -98,8 +98,8 @@ class Plan:
         }
 
         if p.target_plan:
-            today = schedule.for_day(p.target_plan, self.day)
-            base = {key: today.get(name, base[key]) for name, key in schedule.KEYS.items()}
+            today = for_day(p.target_plan, self.day)
+            base = {key: today.get(name, base[key]) for name, key in KEYS.items()}
 
         unlocked = len(self.me["unlocked_quadrants"])
         scale = min(1.0, unlocked / 3.0)
@@ -401,11 +401,13 @@ class Plan:
 
     # ------------------------------------------------------- opponent model
     def _opponent_pressure(self) -> dict[str, float]:
-        """Product units the opponent is holding on-field, ready to harvest.
+        """What the opponent is about to put into the pool, from their public tiles.
 
-        Their tiles are public and carry `yield_units`, so this is a direct read
-        of supply that is about to hit the market, not a guess. Anything already
-        harvested into their shed is hidden from us, so this is a lower bound.
+        Capacity counts, not just stock. Reading `yield_units` alone measures
+        almost nothing, because a tile is only holding produce in the window
+        between ripening and their harvest, so the figure is zero nearly every
+        turn. A tile that grows the product at all is supply heading our way; a
+        tile already holding some is simply nearer.
         """
         pressure: dict[str, float] = {}
 
@@ -418,15 +420,16 @@ class Plan:
                     if not isinstance(tile, dict):
                         continue
 
-                    units = tile.get("yield_units", 0) or 0
-                    if units <= 0:
-                        continue
+                    ready = max(0.0, float(tile.get("yield_units", 0) or 0))
 
-                    if tile.get("kind") == "PLANT":
-                        pressure[tile["crop"]] = pressure.get(tile["crop"], 0.0) + units
+                    if tile.get("kind") == "PLANT" and tile.get("crop"):
+                        crop = tile["crop"]
+                        pressure[crop] = pressure.get(crop, 0.0) + 1.0 + 2.0 * ready
                     elif tile.get("animal"):
-                        product = ANIMALS[tile["animal"]]["product"]
-                        pressure[product] = pressure.get(product, 0.0) + units
+                        data = ANIMALS[tile["animal"]]
+                        product = data["product"]
+                        cadence = 1.0 / max(1, data["interval"])
+                        pressure[product] = pressure.get(product, 0.0) + cadence + 2.0 * ready
 
         return pressure
 
@@ -437,7 +440,7 @@ class Plan:
 
     def hire_target(self) -> int:
         if self.p.target_plan:
-            return schedule.for_day(self.p.target_plan, self.day).get("hands", self.p.hands_steady)
+            return for_day(self.p.target_plan, self.day).get("hands", self.p.hands_steady)
 
         ramped = self.p.hands_open + self.p.hands_ramp * self.day
 

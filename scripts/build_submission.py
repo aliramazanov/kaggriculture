@@ -31,7 +31,7 @@ DIST = ROOT / "dist"
 
 #: Dependency order. Each module may only use names defined above it, which is
 #: what makes naive concatenation a valid bundling strategy.
-MODULES = ("gamedata", "params", "market", "tasks", "assign", "planner", "main")
+MODULES = ("gamedata", "plan_schedule", "params", "market", "tasks", "assign", "planner", "main")
 
 #: A season that ends near the $3,000 opening bank means the agent never acted.
 #: Set well below normal play, so this catches breakage without being brittle.

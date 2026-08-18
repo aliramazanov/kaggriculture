@@ -160,7 +160,7 @@ class Params:
     # a large sale is visible before it happens. The first seller into a pool gets
     # the better price, so a coming flood triggers selling ahead of it.
     frontrun_enabled: bool = True
-    frontrun_threshold: float = 0.5
+    frontrun_threshold: float = 3.0
     frontrun_discount: float = 0.45
 
     # Fertilizer is worth more spent than sold. Spreading it doubles a scheduled
@@ -216,10 +216,44 @@ class Params:
     # oscillate between two targets, walking all season and arriving nowhere.
     sticky_bonus: float = 1.021
 
-    # A searched day-by-day curve of build targets. Empty means the constants
-    # above hold all season. Targets rather than orders, so every reactive
-    # affordability and placement check still applies.
-    target_plan: tuple = ()
+    # A searched day-by-day curve of build targets, in the field order given by
+    # plan_schedule.FIELDS. Empty means the constants above hold all season.
+    # Targets rather than orders, so every reactive affordability and placement
+    # check still applies. Searched on day-6 net worth, which is where we were
+    # behind the recorded routes in every game, then confirmed on full games:
+    # 30.4% against 25.8% over 368 held-out games, up against all four.
+    target_plan: tuple = (
+        (0, 6, 8, 46, 8, 20, 20, 2, 2),
+        (0, 6, 8, 46, 8, 20, 20, 2, 3),
+        (0, 6, 8, 46, 8, 23, 19, 0, 4),
+        (0, 6, 5, 27, 8, 23, 19, 0, 6),
+        (0, 6, 5, 27, 8, 23, 19, 0, 7),
+        (0, 6, 5, 25, 5, 23, 19, 0, 8),
+        (0, 6, 5, 25, 5, 28, 19, 0, 9),
+        (0, 6, 5, 25, 5, 25, 18, 0, 10),
+        (0, 6, 7, 25, 5, 25, 18, 0, 10),
+        (0, 6, 7, 46, 8, 18, 20, 2, 11),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+        (0, 6, 7, 46, 8, 18, 20, 2, 12),
+    )
 
     def evolve(self, **kw) -> Params:
         """Return a copy with the named fields changed.
